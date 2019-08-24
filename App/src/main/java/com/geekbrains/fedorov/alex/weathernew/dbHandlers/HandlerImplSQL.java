@@ -39,7 +39,7 @@ public class HandlerImplSQL implements Handler {
     public boolean addWeather(int temperature, int humidity) {
         SQLTableWeather.addWeather(sqLiteDatabase, currentCityId, temperature, humidity);
 
-        return true;
+        return true; 
     }
 
 
