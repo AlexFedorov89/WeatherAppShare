@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     style="@style/AppTheme"
     android:layout_width="match_parent"
@@ -24,7 +25,7 @@
         android:id="@+id/textView2"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Change city:" />
+        android:text="@string/change_city" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -40,6 +41,15 @@
             android:inputType="textAutoCorrect"
             android:textColor="@android:color/white"
             tools:text="Saint-Petersburg" />
+
+        <ImageButton
+            android:id="@+id/btnCurrentLocation"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_weight="10"
+            android:background="@color/colorPrimary"
+            app:srcCompat="@android:drawable/ic_menu_mylocation"
+            android:contentDescription="@string/get_current_location" />
 
         <Button
             android:id="@+id/commitCityChange"

@@ -29,5 +29,11 @@
     <string name="communicate">Communicate</string>
     <string name="apply">Apply</string>
     <string name="cityChanged">City changed</string>
+    <string name="DATA_UPDATED">Data updated!</string>
+    <string name="CITY_NOT_FOUND">City not found!</string>
+    <string name="ERROR_REQUEST">Error occurred while getting request!</string>
+    <string name="MSG_GIVE_PERMISSIONS">Sorry, but you should give permissions for this app to work correctly.</string>
+    <string name="change_city">Change city:</string>
+    <string name="get_current_location">Get current location</string>
 
 </resources>

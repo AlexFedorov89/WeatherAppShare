@@ -1,10 +1,13 @@
 package com.geekbrains.fedorov.alex.weathernew;
 
+import android.Manifest;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 
 import com.geekbrains.fedorov.alex.weathernew.rest.NetworkService;
@@ -12,6 +15,7 @@ import com.geekbrains.fedorov.alex.weathernew.fragments.AboutAppFragment;
 import com.geekbrains.fedorov.alex.weathernew.fragments.MainScreenFragment;
 import com.geekbrains.fedorov.alex.weathernew.fragments.SettingsFragment;
 import com.geekbrains.fedorov.alex.weathernew.rest.entities.WeatherRequestRestModel;
+import com.geekbrains.fedorov.alex.weathernew.services.Locations;
 import com.geekbrains.fedorov.alex.weathernew.viewModels.UpdateDataViewModel;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
@@ -20,6 +24,7 @@ import android.util.Log;
 import android.view.View;
 
 import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
 import androidx.core.view.GravityCompat;
 import androidx.appcompat.app.ActionBarDrawerToggle;
 
@@ -36,9 +41,9 @@ import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProviders;
+import androidx.preference.PreferenceManager;
 
 import android.view.Menu;
-import android.widget.Toast;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -54,7 +59,6 @@ public class MainActivity extends AppCompatActivity
     private UpdateDataViewModel dataViewModel;
 
     private ServiceFinishedReceiver receiver = new ServiceFinishedReceiver();
-    private Intent intent;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,9 +68,8 @@ public class MainActivity extends AppCompatActivity
         initDataViewModel();
         initToolbarAndDrawer();
         replaceFragmentInContainer(new MainScreenFragment());
+        getCityFromSharedPref();
     }
-
-
 
     private void initDataViewModel() {
         dataViewModel = ViewModelProviders.of(this).get(UpdateDataViewModel.class);
@@ -83,9 +86,6 @@ public class MainActivity extends AppCompatActivity
     protected void onStart() {
         super.onStart();
 
-        // On start updates data.
-        updateData();
-
         registerReceiver(receiver, new IntentFilter(BROADCAST_ACTION));
     }
 
@@ -93,7 +93,17 @@ public class MainActivity extends AppCompatActivity
     protected void onStop() {
         super.onStop();
 
+        saveCityInSharedPref();
+
         unregisterReceiver(receiver);
+    }
+
+    private void saveCityInSharedPref() {
+        final SharedPreferences defaultPrefs = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+        SharedPreferences.Editor editor = defaultPrefs.edit();
+
+        editor.putString(Constants.CURRENT_CITY_SHARED_PRF, dataViewModel.getCurrentCity());
+        editor.apply();
     }
 
     private void initToolbarAndDrawer() {
@@ -129,6 +139,45 @@ public class MainActivity extends AppCompatActivity
 
         fragmentTransaction.replace(R.id.container, fr)
                 .commit();
+    }
+
+    private void getCityFromSharedPref() {
+        final SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+
+        String cityFromSharedPrf = sharedPreferences.getString(Constants.CURRENT_CITY_SHARED_PRF, null);
+
+        if (cityFromSharedPrf != null) {
+            dataViewModel.setCurrentCity(cityFromSharedPrf);
+            dataViewModel.setCity(cityFromSharedPrf);
+        } else {
+            dataViewModel.getCurrentLocation().observe(this, new Observer<String>() {
+                @Override
+                public void onChanged(String s) {
+                    //tempView.setText(String.format("%s%s", s, "°"));
+                    dataViewModel.setCity(s);
+                    // after first application - remove obs.
+                    dataViewModel.getCurrentLocation().removeObserver(this);
+                }
+            });
+
+            // Request permission.
+            requestLocationPermissions();
+            Locations.getAndSetCurrentLocation(getApplicationContext(), dataViewModel);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        if (requestCode == Constants.REQUEST_CODE_PERMISSIONS) {
+            if (grantResults.length <= 0 || (grantResults[0] != PackageManager.PERMISSION_GRANTED)) {
+                Snackbar.make(findViewById(android.R.id.content), getString(R.string.MSG_GIVE_PERMISSIONS), Snackbar.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    private void requestLocationPermissions() {
+        final String[] permissions = new String[]{Manifest.permission.RECEIVE_SMS, Manifest.permission.ACCESS_FINE_LOCATION};
+        ActivityCompat.requestPermissions(this, permissions, Constants.REQUEST_CODE_PERMISSIONS);
     }
 
     @Override
@@ -177,8 +226,7 @@ public class MainActivity extends AppCompatActivity
 
                 break;
             case (R.id.updateData):
-
-                updateData();
+                updateData(dataViewModel.getCurrentCity());
 
                 break;
         }
@@ -189,14 +237,12 @@ public class MainActivity extends AppCompatActivity
         return true;
     }
 
-    private void updateData(){
-        updateData(dataViewModel.getCurrentCity());
-    }
-
     private void updateData(String city) {
+        dataViewModel.setCurrentCity(city);
+
         NetworkService.getInstance()
                 .getAPI()
-                .loadWeather( city + ",ru", "2f52e9c6a1593820f50a6e8250774404", "metric")
+                .loadWeather(city + "," + dataViewModel.getCurrentCountry(), "2f52e9c6a1593820f50a6e8250774404", "metric")
                 .enqueue(new Callback<WeatherRequestRestModel>() {
                     @Override
                     public void onResponse(@NonNull Call<WeatherRequestRestModel> call, @NonNull Response<WeatherRequestRestModel> response) {
@@ -212,23 +258,24 @@ public class MainActivity extends AppCompatActivity
 
                             dataViewModel.handler.addWeather(currentTemp, currentHumidity);
 
-                            Toast.makeText(MainActivity.this, "Data updated!", Toast.LENGTH_SHORT).show();
+                            Snackbar.make(findViewById(android.R.id.content), getString(R.string.DATA_UPDATED), Snackbar.LENGTH_SHORT).show();
                         }
+                        else if (response.raw().code() == 404) {
 
-                        // Is it good to use that?
-                        if (response.raw().code() == 404) {
-                        //if (response.raw().code().equalsIgnoreCase("not found")) {
-                            Toast.makeText(MainActivity.this, "City not found!", Toast.LENGTH_SHORT).show();
+                            Snackbar.make(findViewById(android.R.id.content), getString(R.string.CITY_NOT_FOUND), Snackbar.LENGTH_SHORT).show();
 
                             // set zero temp and humidity.
                             dataViewModel.setTemp(0);
                             dataViewModel.setHumidity(0);
                         }
+                        else {
+                            Log.d(TAG, String.format("Unknown error code: %d, body: %s", response.raw().code(), response.raw().body()));
+                        }
                     }
 
                     @Override
                     public void onFailure(@NonNull Call<WeatherRequestRestModel> call, @NonNull Throwable t) {
-                        Toast.makeText(MainActivity.this, "Error occurred while getting request!", Toast.LENGTH_SHORT).show();
+                        Snackbar.make(findViewById(android.R.id.content), getString(R.string.ERROR_REQUEST), Snackbar.LENGTH_SHORT).show();
 
                         Log.d(TAG, "Retrofit onFailure: " + t.getMessage());
 
@@ -244,11 +291,11 @@ public class MainActivity extends AppCompatActivity
     private class ServiceFinishedReceiver extends BroadcastReceiver {
 
         @Override
-        public void onReceive(Context context, Intent intent) {
+        public void onReceive(final Context context, Intent intent) {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    Toast.makeText(getApplicationContext(), getString(R.string.UpdateDataInfoString), Toast.LENGTH_SHORT).show();
+                    Snackbar.make(findViewById(android.R.id.content), getString(R.string.DATA_UPDATED), Snackbar.LENGTH_SHORT).show();
                 }
             });
         }
