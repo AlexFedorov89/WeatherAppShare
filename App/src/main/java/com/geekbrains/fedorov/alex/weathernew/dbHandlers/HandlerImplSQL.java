@@ -1,8 +1,6 @@
 package com.geekbrains.fedorov.alex.weathernew.dbHandlers;
 
-import android.content.ContentValues;
 import android.content.Context;
-import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 
 import com.geekbrains.fedorov.alex.weathernew.sql.DBHelper;
@@ -15,11 +13,9 @@ public class HandlerImplSQL implements Handler {
     private UpdateDataViewModel dataViewModel;
     private int currentCityId;
 
-    public HandlerImplSQL(Context context, String city) {
+    public HandlerImplSQL(Context context) {
         sqLiteDatabase = new DBHelper(context).getWritableDatabase();
         dataViewModel = new UpdateDataViewModel();
-
-        changeCity(city);
     }
 
     @Override
@@ -42,13 +38,9 @@ public class HandlerImplSQL implements Handler {
         return true; 
     }
 
-
-
     @Override
     public void getWeather() {
         SQLTableWeather.getWeather(sqLiteDatabase, currentCityId, dataViewModel);
 
     }
-
-
 }
